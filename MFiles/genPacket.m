@@ -1,0 +1,66 @@
+% /*************************************************************************************
+%
+%    Project Name:  802.11ad Transmitter
+%    File Name:     genPacket.m
+%    Authors:       Prem Kiran Nerella
+%    Version:       1.0
+%    History:       May 2014 created
+%
+%  *************************************************************************************
+%    Description:
+% 
+%    function generates 802.11ad Std specified waveform
+%    for specified transmit configuration
+%    
+%    [genParams waveform] = genPacket(genParams)
+%
+%    Inputs:
+%
+%       1. genParams   - transmit configuration structure
+%
+%    Outputs:
+%
+%       1. genParams   - input transmit configuration structure updated
+%                        with payload bits and random generator seed 
+%       2. waveform    - waveform generated according 802.11ad Std.
+%
+%    Note: waveform = struct('t0',0,'dt',(1/Ts),'data', []+j*[])
+%          t0   - initial time stamp
+%          dt   - sampling time (sec)
+%          data - complex data array 
+%
+%  *************************************************************************************/
+function [genParams waveform] = genPacket(genParams)
+%File write controls
+wfile = genParams.txParams.File.wfile;
+if(wfile)
+    pname = genParams.txParams.File.pname;
+    dname = genParams.txParams.File.dname;
+end
+
+% Preamble Generation
+[preamble]  = genPreamble(genParams);
+% Payload Generation
+[genParams payload] = genPayload(genParams);
+genParams.payload = payload;
+% Frame Header and Data Generation
+dmgmethod = genParams.txParams.dmgmethod;
+if(dmgmethod == 0) %CS
+    datasymbols = genCSpacket(genParams);
+elseif(dmgmethod == 1) %SC
+    datasymbols = genSCpacket(genParams);
+else %OFDM
+    datasymbols = genOFDMpacket(genParams);
+end
+
+waveform = genParams.waveform;
+waveform.dt = genParams.timeParams.Tsmp;
+waveform.data = [preamble.data datasymbols.data];
+
+%Add Idle time
+[waveform] = addIdletime(waveform,genParams.txParams.Misc.idletime);
+
+% Write waveform to file
+fname = 'waveform.txt';
+if(wfile==1) write2file([pname fname],waveform.data,'complex','%1.3f');end
+
